@@ -24,8 +24,8 @@ class DataBase:
 
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS components (
-        compname TEXT PRIMARY KEY,
-        desc TEXT
+        comp_name TEXT PRIMARY KEY,
+        comp_version TEXT
         )
         ''')
 

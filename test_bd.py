@@ -13,9 +13,9 @@ cursor = conn.cursor()
 
 dbase = DataBase(conn, cursor)
 #print(len(list(df.iloc[1])))
-for i in range(len(df)):
-    try:
-        dbase.add_data_to_cve(list(df.iloc[i]))
-    except:
-        pass
+#for i in range(len(df)):
+#    try:
+#        dbase.add_data_to_cve(list(df.iloc[i]))
+#    except:
+#        pass
 dbase.close()
