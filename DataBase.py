@@ -192,13 +192,19 @@ class DataBase:
         self.conn.commit()
     def add_cve_to_components(self, component, cve, desc):
         self.cursor.execute('''
-                INSERT INTO compCVE (compname, cvename, desc) VALUES (?, ?, ?)
-                ''', (component, cve, desc))
+            INSERT INTO compCVE (compname, cvename, desc) VALUES (?, ?, ?)
+            ''', (component, cve, desc))
         self.conn.commit()
     def add_data_to_cve(self, corteg):
         self.cursor.execute('''
                 INSERT INTO cve VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (corteg))
+        self.conn.commit()
+
+    def add_components(self, comp_name):
+        self.cursor.execute('''
+                INSERT INTO components VALUES (?)
+                ''', (comp_name, ))
         self.conn.commit()
     def close(self):
         self.conn.commit()
