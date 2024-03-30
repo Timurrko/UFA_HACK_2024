@@ -3,11 +3,12 @@ from db_config import db_path
 
 
 class DataBase:
-    def __init__(self, conn, cursor):
-        self.conn = conn
-        self.cursor = cursor
+    def __init__(self, path):
+        self.path = path
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         pass_hash TEXT NOT NULL,
@@ -15,21 +16,21 @@ class DataBase:
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS projects (
         projectname TEXT PRIMARY KEY,
         desc TEXT
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS components (
         comp_name TEXT PRIMARY KEY,
         comp_version TEXT
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS cve (
         id_bdu TEXT PRIMARY KEY,
         cve_name TEXT,
@@ -45,13 +46,13 @@ class DataBase:
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS tgusers (
         id TEXT PRIMARY KEY
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS compCVE (
         compname TEXT PRIMARY KEY,
         cvename TEXT NOT NULL,
@@ -59,162 +60,239 @@ class DataBase:
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS tgusers_users_conn (
-        id TEXT PRIMARY KEY,
-        username TEXT NOT NULL
+        username TEXT PRIMARY KEY,
+        id TEXT NOT NULL
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_projects_conn (
         username TEXT PRIMARY KEY,
         projectname TEXT NOT NULL
         )
         ''')
 
-        self.cursor.execute('''
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS project_components_conn (
         projectname TEXT PRIMARY KEY,
         component TEXT NOT NULL
         )
         ''')
-        self.conn.commit()
+        conn.commit()
+        conn.close()
+
 
     def add_user(self, user_name, hash, access):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
         INSERT INTO users (username, pass_hash, access_lvl) VALUES (?, ?, ?)
         ''', (user_name, hash, access))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
     def delete_user(self, user_name):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
 
-        self.cursor.execute('''
+        cursor.execute('''
             DELETE FROM users
             WHERE username = ?
             ''', (user_name,))
-        self.cursor.execute('''
+        cursor.execute('''
             DELETE FROM tgusers_users_conn
             WHERE username = ?
             ''', (user_name,))
-        self.cursor.execute('''
+        cursor.execute('''
             DELETE FROM user_projects_conn
             WHERE username = ?
             ''', (user_name,))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
     def check_login(self, user_name):
-        user_exists = (self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        user_exists = (cursor.execute('''
                 SELECT EXISTS(SELECT username FROM users WHERE username = ?)
                 ''', (user_name,))).fetchall()[0][0]
         if not user_exists:
+            conn.close()
             return False
         else:
+            conn.close()
             return True
 
+    def get_login(self, tg_id):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        user_name = cursor.execute('''SELECT username FROM tgusers_users_conn
+        WHERE id = ?''', (tg_id,)).fetchall()[0]
+        conn.close()
+        return user_name
+    def get_id(self, user_name):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        tg_id = cursor.execute('''SELECT id FROM tgusers_users_conn
+        WHERE username = ?''', (user_name,)).fetchall()[0]
+        conn.close()
+        return tg_id
+
     def check_login_data(self, user_name, parol_hash):
-        user_exists = (self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        user_exists = (cursor.execute('''
             SELECT EXISTS(SELECT pass_hash FROM users WHERE username = ? AND pass_hash = ?)
             ''', (user_name, parol_hash))).fetchall()[0][0]
         if not user_exists:
+            conn.close()
             return False
         else:
+            conn.close()
             return True
 
     def change_password(self, user_name, parol_hash):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
             UPDATE users
             SET pass_hash = ? WHERE username = ?
             ''', (parol_hash, user_name))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
-    def add_tg_user(self, tg, user_name):
-        self.cursor.execute('''
-                INSERT INTO tgusers (id) VALUES (?)
-                ''', (tg,))
-        self.cursor.execute('''
-                INSERT INTO tgusers_users_conn (id, username) VALUES (?, ?)
-                ''', (tg, user_name))
-        self.conn.commit()
+    def add_tg_user(self, user_name, tg):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        #cursor.execute('''
+        #        INSERT INTO tgusers (id) VALUES (?)
+        #        ''', (tg,))
+        cursor.execute('''
+                INSERT INTO tgusers_users_conn (username, id) VALUES (?, ?)
+                ''', (user_name, tg))
+        conn.commit()
+        conn.close()
 
     def check_if_tg_user_exists(self, user_name, tg_id):
-        tg_exists = (self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        tg_exists = (cursor.execute('''
                 SELECT EXISTS(SELECT username, id FROM tgusers_users_conn WHERE username = ? AND id = ?)
                 ''', (user_name, tg_id))).fetchall()[0][0]
         if not tg_exists:
+            conn.close()
             return False
         else:
+            conn.close()
             return True
 
     def delete_tg_user(self, user_name, tg_id):
-        tg_exists = (self.cursor.execute('''
-                    SELECT EXISTS(SELECT username, id FROM tgusers_users_conn WHERE  id = ?)
-                    ''', (user_name, tg_id))).fetchall()[0][0]
-        if not tg_exists:
-            self.cursor.execute('''DELETE id FROM tgusers WHERE id = ?)
-            ''', (tg_id,))
-            self.conn.commit()
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        tg_exists = (cursor.execute('''
+                    SELECT EXISTS(SELECT username, id FROM tgusers_users_conn WHERE  id = ? AND username = ?)
+                    ''', (tg_id, user_name))).fetchall()[0][0]
+        if tg_exists:
+#            cursor.execute('''DELETE id FROM tgusers WHERE id = ?
+ #           ''', (tg_id,))
+            cursor.execute('''DELETE username FROM tgusers_users_conn WHERE id = ?
+                        ''', (tg_id,))
+            conn.commit()
+            conn.close()
         else:
+            conn.commit()
+            conn.close()
             return True
 
     def add_project(self, project_name, des):
-        self.cursor.execute('''
-            INSERT INTO projects (projectname, des) VALUES (?, ?)
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO projects (projectname, desc) VALUES (?, ?)
             ''', (project_name, des))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
     def check_if_project_exist(self, project_name):
-        pro_exists = (self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        pro_exists = (cursor.execute('''
                     SELECT EXISTS(SELECT projectname FROM projects WHERE projectname = ?)
                     ''', (project_name,))).fetchall()[0][0]
         if not pro_exists:
+            conn.close()
             return False
         else:
+            conn.close()
             return True
 
     def delete_project(self, project_name):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
             DELETE projectname FROM projects WHERE projectname = ?)
             ''', project_name)
-        self.conn.commit()
+        conn.commit()
+        conn.close()
 
     def add_user_to_project(self, user_name, project_name):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
                 INSERT INTO user_projects_conn (username, projectname) VALUES (?, ?)
                 ''', (user_name, project_name))
-        self.conn.commit()
-
+        conn.commit()
+        conn.close()
 
     def add_components_to_project(self, project_name, component):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
                 INSERT INTO project_component_conn (projectname, component) VALUES (?, ?)
                 ''', (project_name, component))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
+
     def add_cve_to_components(self, component, cve, desc):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
             INSERT INTO compCVE (compname, cvename, desc) VALUES (?, ?, ?)
             ''', (component, cve, desc))
-        self.conn.commit()
+        conn.commit()
+        conn.close()
+
     def add_data_to_cve(self, corteg):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
                 INSERT INTO cve VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (corteg))
-        self.conn.commit()
+                ''', corteg)
+        conn.commit()
+        conn.close()
 
     def add_components(self, comp_name):
-        self.cursor.execute('''
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        cursor.execute('''
                 INSERT INTO components VALUES (?)
-                ''', (comp_name, ))
-        self.conn.commit()
-    def close(self):
-        self.conn.commit()
-        self.conn.close()
+                ''', (comp_name,))
+        conn.commit()
+        conn.close()
+
+    def select_project(self):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        projects = cursor.execute('''
+            SELECT * FROM projects 
+            ''',).fetchall()
+        conn.commit()
+        conn.close()
+        return (projects)
+
 
 
 if __name__ == '__main__':
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    dbase = DataBase(conn, cursor)
-
-    dbase.close()
-
+    dbase = DataBase(db_path)
