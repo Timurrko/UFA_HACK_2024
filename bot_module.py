@@ -1,4 +1,6 @@
 import sqlite3
+import time
+from threading import Thread
 
 import telebot
 from telebot import types
@@ -6,6 +8,7 @@ from telebot import types
 from DataBase import DataBase
 from config import token
 from db_config import db_path
+from tools import get_list_of_useful_news
 
 bot = telebot.TeleBot(token)
 
@@ -19,25 +22,28 @@ def start(message):
     ent_butn = types.InlineKeyboardButton(text='Войти', callback_data='ent')
     reg_butn = types.InlineKeyboardButton(text='Зарегестрироваться', callback_data='reg')
     keyb.add(ent_butn, reg_butn)
-    bot.send_message(message.chat.id, "Приветствую!", reply_markup=keyb)
+    bot.send_message(message.chat.id,
+                     "Доброго времени суток, этот бот поможет вам быть в курсе актуальных уязвимостей вашего проекта",
+                     reply_markup=keyb)
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'ent')
 def authorization(callback):
     message = callback.message
     bot.send_message(message.chat.id, 'Введите логин')
-    bot.register_next_step_handler(message, check_for_login)
+    bot.register_next_step_handler(message, enter_login_and_check_if_exists)
 
 
-def check_for_login(message):
+def enter_login_and_check_if_exists(message):
     global curr_log
     curr_log = message.text
-    if dbase.check_login(message.text):
+
+    if dbase.check_if_login_exists(message.text):
         bot.send_message(message.chat.id, 'Введите пароль')
         bot.register_next_step_handler(message, check_for_pass)
     else:
-        bot.send_message(message.chat.id, 'Этот логин не существует.')
-        bot.register_next_step_handler(message, check_for_login)
+        bot.send_message(message.chat.id, 'Этот логин не существует. Попробуйте ввести другой')
+        bot.register_next_step_handler(message, enter_login_and_check_if_exists)
 
 
 def check_for_pass(message):
@@ -61,7 +67,7 @@ def check_for_callback(callback):
 
 
 def new_login(message):
-    if dbase.check_login(message.text):
+    if dbase.check_if_login_exists(message.text):
         bot.send_message(message.chat.id, 'Этот логин занят. Придумайте другой логин.')
         bot.register_next_step_handler(message, new_login)
     else:
@@ -79,7 +85,8 @@ def new_pass(message):
     dbase.add_user(curr_log, hash(user_pass), 0)
     print(message.chat.id)
     print(curr_log)
-    dbase.add_tg_user(curr_log, message.chat.id)
+    if not dbase.check_if_tg_user_exists(message.chat.id):
+        dbase.add_tg_user_and_sys_username(curr_log, message.chat.id)
     bot.send_message(message.chat.id,
                      'Пользователь создан!' + '\n' + 'Логин: ' + curr_log + '\t' + 'Пароль: ' + user_pass)
 
@@ -97,19 +104,26 @@ def authorised_session(message):
 @bot.callback_query_handler(func=lambda callback: callback.data == 'proj_manag')
 def proj_managment(callback):
     message = callback.message
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    create_proj_butn = types.InlineKeyboardButton(text='Создание проекта', callback_data='proj_create')
-    mod_butn = types.InlineKeyboardButton(text='Редактирование', callback_data='mod_proj')
-    keyboard.add(create_proj_butn, mod_butn)
-    bot.send_message(message.chat.id, "Режим управления проектами!", reply_markup=keyboard)
+    if dbase.verify_user(message.chat.id):
+        keyboard = types.InlineKeyboardMarkup(row_width=1)
+        create_proj_butn = types.InlineKeyboardButton(text='Создание проекта', callback_data='proj_create')
+        mod_butn = types.InlineKeyboardButton(text='Редактирование', callback_data='mod_proj')
+        keyboard.add(create_proj_butn, mod_butn)
+        bot.send_message(message.chat.id, "Режим управления проектами!", reply_markup=keyboard)
+    else:
+        bot.send_message(message.chat.id, "Сначала войдите в систему!")
+
 
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'proj_create')
 def proj_create(callback):
     message = callback.message
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    bot.send_message(message.chat.id, "Введите название пректа")
-    bot.register_next_step_handler(message, proj_name)
+    if dbase.verify_user(message.chat.id):
+        keyboard = types.InlineKeyboardMarkup(row_width=1)
+        bot.send_message(message.chat.id, "Введите название пректа")
+        bot.register_next_step_handler(message, proj_name)
+    else:
+        bot.send_message(message.chat.id, "Сначала войдите в систему!")
 
 
 def proj_name(message):
@@ -121,12 +135,17 @@ def proj_name(message):
     else:
         bot.send_message(message.chat.id, "Не удалось создать проект")
 
+
 @bot.callback_query_handler(func=lambda callback: callback.data == 'mod_proj')
 def proj_mod(callback):
     message = callback.message
-    data = dbase.select_project()
-    bot.send_message(message.chat.id, "Выберете проект",  data)
-    bot.register_next_step_handler(message, change_proj)
+    if dbase.verify_user(message.chat.id):
+        data = dbase.select_project()
+        bot.send_message(message.chat.id, "Выберите проект", data)
+        bot.register_next_step_handler(message, change_proj)
+    else:
+        bot.send_message(message.chat.id, "Сначала войдите в проект!")
+
 
 def change_proj(message):
     global project_name
@@ -139,22 +158,40 @@ def change_proj(message):
         keyboard.add(add_user_butn, add_comp_butn, del_butn)
         bot.send_message(message.chat.id, "Управление проектом!", reply_markup=keyboard)
     else:
-        bot.send_message(message.chat.id, "Прект не найден, поробуйте еще раз")
+        bot.send_message(message.chat.id, "Проект не найден, поробуйте еще раз")
         bot.register_next_step_handler(message, change_proj)
+
 
 @bot.callback_query_handler(func=lambda callback: callback.data == 'proj_add_comp')
 def add_component(callback):
     message = callback.message
-    bot.send_message(message.chat.id, "Выберете компонент, введите списком")
+    bot.send_message(message.chat.id, "Выберите компонент, введите списком")
     bot.register_next_step_handler(message, component_name)
+
 
 def component_name(message):
     component = message.text
-    dbase.add_components_to_project(project_name, component )
+    dbase.add_components_to_project(project_name, component)
+
+
 @bot.callback_query_handler(func=lambda callback: callback.data == 'exit')
 def exit(callback):
     message = callback.message
-    dbase.delete_tg_user(curr_log, message.chat.id)
+    if dbase.verify_user(message.chat.id):
+        dbase.delete_conn_between_tg_id_and_username(curr_log, message.chat.id)
+        bot.send_message(message.chat.id, "Вы вышли из системы!")
 
 
-bot.polling()
+
+def timed_message():
+    while True:
+        print('check')
+        get_list_of_useful_news(["Artica Proxy"])
+        #bot.send_message()
+
+        time.sleep(600)
+
+
+if __name__ == "__main__":
+    Thread(target=bot.polling, kwargs={'none_stop': True}).start()
+    Thread(target=timed_message).start()

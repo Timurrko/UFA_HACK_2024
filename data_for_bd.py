@@ -11,5 +11,5 @@ cursor = conn.cursor()
 dbase = DataBase(db_path)
 
 print(dbase.add_user('timur1', '123456', 0))
-print(dbase.check_login('timur'))
+print(dbase.check_if_login_exists('timur'))
 

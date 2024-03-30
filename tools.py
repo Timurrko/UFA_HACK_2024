@@ -3,6 +3,9 @@ import re
 import requests
 import urllib3.exceptions
 from bs4 import BeautifulSoup
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def get_news():
@@ -47,6 +50,8 @@ def get_list_of_useful_news(components):
 
 
 if __name__ == "__main__":
-    #print(get_news())
-    #print()
-    print(get_list_of_useful_news(['HP OfficeJet Pro', 'Artica Proxy']))
+    for i in get_news():
+        print(i)
+    print("*" * 30)
+    for i in get_list_of_useful_news(['HP OfficeJet Pro', 'Artica Proxy']):
+        print(i)

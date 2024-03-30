@@ -112,7 +112,7 @@ class DataBase:
         conn.commit()
         conn.close()
 
-    def check_login(self, user_name):
+    def check_if_login_exists(self, user_name):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
         user_exists = (cursor.execute('''
@@ -125,26 +125,19 @@ class DataBase:
             conn.close()
             return True
 
-    def get_login(self, tg_id):
+    def get_username_for_tg_user(self, tg_id):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
         user_name = cursor.execute('''SELECT username FROM tgusers_users_conn
         WHERE id = ?''', (tg_id,)).fetchall()[0]
         conn.close()
         return user_name
-    def get_id(self, user_name):
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        tg_id = cursor.execute('''SELECT id FROM tgusers_users_conn
-        WHERE username = ?''', (user_name,)).fetchall()[0]
-        conn.close()
-        return tg_id
 
     def check_login_data(self, user_name, parol_hash):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
         user_exists = (cursor.execute('''
-            SELECT EXISTS(SELECT pass_hash FROM users WHERE username = ? AND pass_hash = ?)
+            SELECT EXISTS(SELECT username FROM users WHERE username = ? AND pass_hash = ?)
             ''', (user_name, parol_hash))).fetchall()[0][0]
         if not user_exists:
             conn.close()
@@ -163,24 +156,24 @@ class DataBase:
         conn.commit()
         conn.close()
 
-    def add_tg_user(self, user_name, tg):
+    def add_tg_user_and_sys_username(self, user_name, tg_id):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
-        #cursor.execute('''
-        #        INSERT INTO tgusers (id) VALUES (?)
-        #        ''', (tg,))
+        cursor.execute('''
+                INSERT INTO tgusers (id) VALUES (?)
+                ''', (tg_id,))
         cursor.execute('''
                 INSERT INTO tgusers_users_conn (username, id) VALUES (?, ?)
-                ''', (user_name, tg))
+                ''', (user_name, tg_id))
         conn.commit()
         conn.close()
 
-    def check_if_tg_user_exists(self, user_name, tg_id):
+    def check_if_tg_user_exists(self, tg_id):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
         tg_exists = (cursor.execute('''
-                SELECT EXISTS(SELECT username, id FROM tgusers_users_conn WHERE username = ? AND id = ?)
-                ''', (user_name, tg_id))).fetchall()[0][0]
+                SELECT EXISTS(SELECT  id FROM tgusers WHERE id = ?)
+                ''', (tg_id, ))).fetchall()[0][0]
         if not tg_exists:
             conn.close()
             return False
@@ -188,17 +181,20 @@ class DataBase:
             conn.close()
             return True
 
-    def delete_tg_user(self, user_name, tg_id):
+    def delete_conn_between_tg_id_and_username(self, user_name, tg_id):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
-        tg_exists = (cursor.execute('''
-                    SELECT EXISTS(SELECT username, id FROM tgusers_users_conn WHERE  id = ? AND username = ?)
+        try:
+            tg_exists = (cursor.execute('''
+                    SELECT username, id FROM tgusers_users_conn WHERE  id = ? AND username = ?
                     ''', (tg_id, user_name))).fetchall()[0][0]
+            tg_exists = True
+        except IndexError:
+            tg_exists = False
         if tg_exists:
-#            cursor.execute('''DELETE id FROM tgusers WHERE id = ?
- #           ''', (tg_id,))
-            cursor.execute('''DELETE username FROM tgusers_users_conn WHERE id = ?
-                        ''', (tg_id,))
+
+            cursor.execute('''DELETE FROM tgusers_users_conn WHERE username = ?
+                        ''', (user_name,))
             conn.commit()
             conn.close()
         else:
@@ -206,12 +202,27 @@ class DataBase:
             conn.close()
             return True
 
+    def verify_user(self, tg_id):
+        conn = sqlite3.connect(self.path)
+        cursor = conn.cursor()
+        try:
+            user_autho = cursor.execute('''
+                    SELECT id FROM tgusers_users_conn WHERE id = ?
+                    ''', (tg_id,)).fetchall()[0][0]
+            return True
+        except IndexError:
+            return False
+
+
+
     def add_project(self, project_name, des):
         conn = sqlite3.connect(self.path)
         cursor = conn.cursor()
+        print(1)
         cursor.execute('''
             INSERT INTO projects (projectname, desc) VALUES (?, ?)
             ''', (project_name, des))
+        print(2)
         conn.commit()
         conn.close()
 
@@ -296,3 +307,4 @@ class DataBase:
 
 if __name__ == '__main__':
     dbase = DataBase(db_path)
+    #print(dbase.verify_user('1480780000006'))
